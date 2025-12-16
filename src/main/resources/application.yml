@@ -1,0 +1,50 @@
+# 服务器配置
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# Spring配置
+spring:
+  application:
+    name: medicine-sales
+
+  # 数据源配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/medicine_sales?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root  # 修改为您的MySQL密码
+
+  # JSON配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+
+  # 解决Swagger与Spring Boot 2.6+版本兼容性问题
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+# MyBatis配置
+mybatis:
+  # 指定mapper.xml文件位置
+  mapper-locations: classpath:mapper/**/*.xml
+  # 指定实体类包路径
+  type-aliases-package: com.neusoft.coursemgr.domain
+  configuration:
+    # 开启驼峰命名转换
+    map-underscore-to-camel-case: true
+    # 打印SQL日志（开发环境）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# Swagger配置
+springfox:
+  documentation:
+    swagger-ui:
+      enabled: true
+
+jwt:
+  # 需要至少32字符（用于HS256/HS384等HMAC密钥），生产环境请使用更安全的随机值
+  secret: "change_me_to_a_long_random_secret_32_chars_min"
+  expire-seconds: 86400

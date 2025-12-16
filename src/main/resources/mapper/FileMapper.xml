@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neusoft.coursemgr.mapper.FileMapper">
+
+    <resultMap id="FileRecordResultMap" type="com.neusoft.coursemgr.domain.FileRecord">
+        <id property="id" column="id" />
+        <result property="contentType" column="content_type" />
+        <result property="originalFilename" column="original_filename" />
+        <result property="size" column="size" />
+        <result property="data" column="data" />
+        <result property="uploaderAdminId" column="uploader_admin_id" />
+        <result property="createTime" column="create_time" />
+    </resultMap>
+
+    <insert id="insert" parameterType="com.neusoft.coursemgr.domain.FileRecord" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO file_table (
+            content_type, original_filename, size, data, uploader_admin_id
+        ) VALUES (
+            #{contentType}, #{originalFilename}, #{size}, #{data}, #{uploaderAdminId}
+        )
+    </insert>
+
+    <select id="selectMetaById" parameterType="long" resultMap="FileRecordResultMap">
+        SELECT id, content_type, original_filename, size, uploader_admin_id, create_time
+        FROM file_table
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectDataById" parameterType="long" resultMap="FileRecordResultMap">
+        SELECT id, content_type, original_filename, size, data, uploader_admin_id, create_time
+        FROM file_table
+        WHERE id = #{id}
+    </select>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM file_table WHERE id = #{id}
+    </delete>
+
+</mapper>

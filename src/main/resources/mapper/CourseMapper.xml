@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neusoft.coursemgr.mapper.CourseMapper">
+
+    <resultMap id="CourseResultMap" type="com.neusoft.coursemgr.domain.Course">
+        <id property="id" column="id" />
+        <result property="courseName" column="course_name" />
+        <result property="credit" column="credit" />
+        <result property="teacher" column="teacher" />
+        <result property="location" column="location" />
+        <result property="courseCode" column="course_code" />
+        <result property="createTime" column="create_time" />
+        <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, course_name, credit, teacher, location, course_code, create_time, update_time
+    </sql>
+
+    <select id="selectById" parameterType="long" resultMap="CourseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM tb_course WHERE id = #{id}
+    </select>
+
+    <select id="selectByTeacher" parameterType="string" resultMap="CourseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM tb_course WHERE teacher = #{teacher}
+    </select>
+
+    <select id="selectByNameLike" parameterType="string" resultMap="CourseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM tb_course
+        WHERE course_name LIKE CONCAT('%', #{keyword}, '%')
+    </select>
+
+    <select id="selectByCredit" parameterType="int" resultMap="CourseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM tb_course
+        WHERE credit = #{credit}
+        ORDER BY course_name ASC
+    </select>
+
+    <select id="selectByLocation" parameterType="string" resultMap="CourseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM tb_course WHERE location = #{location}
+    </select>
+
+    <insert id="insert" parameterType="com.neusoft.coursemgr.domain.Course" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tb_course (course_name, credit, teacher, location, course_code)
+        VALUES (#{courseName}, #{credit}, #{teacher}, #{location}, #{courseCode})
+    </insert>
+
+    <update id="updateCredit">
+        UPDATE tb_course SET credit = #{credit} WHERE id = #{id}
+    </update>
+
+    <update id="updateLocation">
+        UPDATE tb_course SET location = #{location} WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM tb_course WHERE id = #{id}
+    </delete>
+
+    <select id="selectByCourseCode" parameterType="string" resultMap="CourseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM tb_course WHERE course_code = #{courseCode}
+    </select>
+
+</mapper>
