@@ -39,3 +39,4 @@ jobs:
           script: |
             sudo systemctl restart medicine
             echo "部署成功"
+
