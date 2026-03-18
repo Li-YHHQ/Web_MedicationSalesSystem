@@ -34,8 +34,7 @@ public class UserController {
     @PostMapping("/login")
     @Operation(summary = "用户登录")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody UserLoginRequest req) {
-        throw new RuntimeException("Sentry测试异常");
-        // return ApiResponse.ok(userService.login(req.getUsername(), req.getPassword()));
+        return ApiResponse.ok(userService.login(req.getUsername(), req.getPassword()));
     }
 
     @GetMapping("/me")
