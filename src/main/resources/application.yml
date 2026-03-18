@@ -14,7 +14,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/medicine_sales?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
     username: root
-    password: root  # 修改为您的MySQL密码
+    password: Han903111  # 修改为您的MySQL密码
 
   # JSON配置
   jackson:
