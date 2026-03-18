@@ -206,8 +206,8 @@ java -jar target/course-mgr-0.0.1-SNAPSHOT.jar
 |------|------|------|----------|
 | POST | `/api/users/register` | 用户注册 | ❌ |
 | POST | `/api/users/login` | 用户登录 | ❌ |
-| GET | `/api/users/profile` | 获取个人信息 | ✅ |
-| PUT | `/api/users/profile` | 更新个人信息 | ✅ |
+| GET | `/api/users/me` | 获取个人信息 | ✅ |
+| PUT | `/api/users/me` | 更新个人信息 | ✅ |
 
 #### 商品相关
 | 方法 | 路径 | 说明 | 需要认证 |
@@ -511,19 +511,52 @@ mvn test
 
 ## 📦 部署
 
-### 打包
+### 本地打包运行
 
 ```bash
 mvn clean package -DskipTests
+java -jar target/course-mgr-0.0.1-SNAPSHOT.jar
 ```
 
 生成的 JAR 文件位于 `target/course-mgr-0.0.1-SNAPSHOT.jar`
 
-### 运行
+### CI/CD 自动部署（GitHub Actions）
+
+项目已配置 GitHub Actions 自动部署流程，推送到 `main` 分支时自动触发：
+
+```
+代码推送到 main → Maven 打包 → SCP 上传 JAR → SSH 重启服务
+```
+
+#### 工作流步骤（`.github/workflows/deploy.yml`）
+
+| 步骤 | 说明 |
+|------|------|
+| 拉取代码 | `actions/checkout@v3` |
+| 安装 Java 17 | `actions/setup-java@v3`（Temurin 发行版） |
+| Maven 打包 | `mvn clean package -DskipTests` |
+| 上传 JAR | 通过 `appleboy/scp-action` 将 JAR 上传到服务器 `/opt/app/` |
+| 重启服务 | 通过 `appleboy/ssh-action` SSH 到服务器执行重启脚本 |
+
+#### 重启脚本逻辑
 
 ```bash
-java -jar target/course-mgr-0.0.1-SNAPSHOT.jar
+pkill -f course-mgr || true   # 停止旧进程（不存在时忽略）
+sleep 3                        # 等待进程退出
+nohup java -jar /opt/app/course-mgr-0.0.1-SNAPSHOT.jar > /opt/app/app.log 2>&1 &
+sleep 5                        # 等待 JVM 初始化
+kill -0 $! && echo "部署成功" || (echo "启动失败" && exit 1)
 ```
+
+#### 配置所需的 GitHub Secrets
+
+在仓库 Settings → Secrets and variables → Actions 中添加：
+
+| Secret 名称 | 说明 |
+|-------------|------|
+| `SERVER_HOST` | 服务器 IP 或域名 |
+| `SERVER_USER` | SSH 登录用户名 |
+| `SERVER_SSH_KEY` | SSH 私钥（PEM 格式） |
 
 ### Docker 部署（可选）
 
