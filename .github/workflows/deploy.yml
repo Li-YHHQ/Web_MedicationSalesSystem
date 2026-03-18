@@ -38,5 +38,6 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             pkill -f course-mgr || true
-            sleep 2
-            nohup java -jar /opt/app/course-mgr-0.0.1-SNAPSHOT.jar > /opt/app/app.log 2>&1 &
+             sleep 3
+             nohup java -jar /opt/app/course-mgr-0.0.1-SNAPSHOT.jar > /opt/app/app.log 2>&1 &
+             echo "部署成功"
