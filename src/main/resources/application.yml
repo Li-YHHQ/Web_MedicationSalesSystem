@@ -38,6 +38,12 @@ mybatis:
     # 打印SQL日志（开发环境）
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 # Swagger配置
 springfox:
   documentation:
