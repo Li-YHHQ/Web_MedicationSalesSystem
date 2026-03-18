@@ -50,7 +50,7 @@ jwt:
   expire-seconds: 86400
 
 sentry:
-  dsn: https://1bab73eaae12c6d3dcce50c62d8522a6@o4511063957045248.ingest.us.sentry.io/4511063965630464
+  dsn: https://e4f20b6f33dd6ed300f479a7ff407fb8@o4511063957045248.ingest.us.sentry.io/4511064028741633
   send-default-pii: true
   traces-sample-rate: 1.0
   environment: production
