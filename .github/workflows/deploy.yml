@@ -39,4 +39,6 @@ jobs:
           script: |
             pkill -f course-mgr || true
             sleep 3
-            setsid nohup java -jar /opt/app/course-mgr-0.0.1-SNAPSHOT.jar > /opt/app/app.log 2>&1
+            nohup java -jar /opt/app/course-mgr-0.0.1-SNAPSHOT.jar > /opt/app/app.log 2>&1 &
+            sleep 5
+            kill -0 $! && echo "部署成功" || (echo "启动失败" && exit 1)
