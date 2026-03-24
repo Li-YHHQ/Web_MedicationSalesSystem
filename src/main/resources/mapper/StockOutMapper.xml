@@ -26,6 +26,7 @@
         <result property="totalSalesAmount" column="total_sales_amount"/>
         <result property="totalCostAmount" column="total_cost_amount"/>
         <result property="totalProfit" column="total_profit"/>
+        <result property="salesCount" column="sales_count"/>
     </resultMap>
 
     <insert id="insert" parameterType="com.neusoft.coursemgr.domain.StockOut"
@@ -105,13 +106,14 @@
         </where>
     </select>
 
-    <!-- 统计区间内销售总额（out_type=1）、成本总额、利润 -->
+    <!-- 统计区间内销售总额（out_type=1）、成本总额、利润、销售笔数 -->
     <select id="sumByDateRange" resultMap="SummaryResultMap">
         SELECT
-            COALESCE(SUM(CASE WHEN out_type = 1 THEN total_amount ELSE 0 END), 0) AS total_sales_amount,
-            COALESCE(SUM(cost_price * quantity), 0)                                AS total_cost_amount,
+            COALESCE(SUM(CASE WHEN out_type = 1 THEN total_amount ELSE 0 END), 0)  AS total_sales_amount,
+            COALESCE(SUM(cost_price * quantity), 0)                                 AS total_cost_amount,
             COALESCE(SUM(CASE WHEN out_type = 1 THEN total_amount ELSE 0 END)
-                   - SUM(cost_price * quantity), 0)                                AS total_profit
+                   - SUM(cost_price * quantity), 0)                                 AS total_profit,
+            COALESCE(COUNT(CASE WHEN out_type = 1 THEN 1 END), 0)                  AS sales_count
         FROM stock_out_table
         <where>
             <if test="startDate != null and startDate != ''">

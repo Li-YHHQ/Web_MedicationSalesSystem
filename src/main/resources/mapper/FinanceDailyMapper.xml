@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neusoft.coursemgr.mapper.FinanceDailyMapper">
+
+    <resultMap id="FinanceDailyResultMap" type="com.neusoft.coursemgr.domain.FinanceDaily">
+        <id property="id" column="id"/>
+        <result property="statDate" column="stat_date"/>
+        <result property="salesAmount" column="sales_amount"/>
+        <result property="costAmount" column="cost_amount"/>
+        <result property="profitAmount" column="profit_amount"/>
+        <result property="salesCount" column="sales_count"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, stat_date, sales_amount, cost_amount, profit_amount, sales_count, create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="com.neusoft.coursemgr.domain.FinanceDaily"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO finance_daily_table (stat_date, sales_amount, cost_amount, profit_amount, sales_count)
+        VALUES (#{statDate}, #{salesAmount}, #{costAmount}, #{profitAmount}, #{salesCount})
+    </insert>
+
+    <update id="updateByDate" parameterType="com.neusoft.coursemgr.domain.FinanceDaily">
+        UPDATE finance_daily_table
+        SET sales_amount  = #{salesAmount},
+            cost_amount   = #{costAmount},
+            profit_amount = #{profitAmount},
+            sales_count   = #{salesCount}
+        WHERE stat_date = #{statDate}
+    </update>
+
+    <select id="selectByDate" resultMap="FinanceDailyResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM finance_daily_table
+        WHERE stat_date = #{date}
+    </select>
+
+    <select id="selectList" resultMap="FinanceDailyResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM finance_daily_table
+        <where>
+            <if test="startDate != null and startDate != ''">
+                AND stat_date &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND stat_date &lt;= #{endDate}
+            </if>
+        </where>
+        ORDER BY stat_date ASC
+    </select>
+
+</mapper>
