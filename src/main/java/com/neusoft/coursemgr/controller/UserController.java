@@ -6,7 +6,6 @@ import com.neusoft.coursemgr.domain.LoginResponse;
 import com.neusoft.coursemgr.domain.UpdateProfileRequest;
 import com.neusoft.coursemgr.domain.User;
 import com.neusoft.coursemgr.domain.UserLoginRequest;
-import com.neusoft.coursemgr.domain.UserRegisterRequest;
 import com.neusoft.coursemgr.exception.BizException;
 import com.neusoft.coursemgr.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,12 +22,6 @@ public class UserController {
 
     public UserController(UserService userService) {
         this.userService = userService;
-    }
-
-    @PostMapping("/register")
-    @Operation(summary = "用户注册")
-    public ApiResponse<Long> register(@Valid @RequestBody UserRegisterRequest req) {
-        return ApiResponse.ok("created", userService.register(req.getUsername(), req.getPassword()));
     }
 
     @PostMapping("/login")
