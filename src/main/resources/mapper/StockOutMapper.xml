@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neusoft.coursemgr.mapper.StockOutMapper">
+
+    <resultMap id="StockOutVOResultMap" type="com.neusoft.coursemgr.domain.StockOutVO">
+        <id property="id" column="id"/>
+        <result property="drugId" column="drug_id"/>
+        <result property="drugName" column="drug_name"/>
+        <result property="drugSpec" column="drug_spec"/>
+        <result property="batchId" column="batch_id"/>
+        <result property="batchNo" column="batch_no"/>
+        <result property="expireDate" column="expire_date"/>
+        <result property="outType" column="out_type"/>
+        <result property="outTypeName" column="out_type_name"/>
+        <result property="quantity" column="quantity"/>
+        <result property="retailPrice" column="retail_price"/>
+        <result property="costPrice" column="cost_price"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="operatorUsername" column="operator_username"/>
+        <result property="remark" column="remark"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <resultMap id="SummaryResultMap" type="com.neusoft.coursemgr.domain.StockOutSummaryVO">
+        <result property="totalSalesAmount" column="total_sales_amount"/>
+        <result property="totalCostAmount" column="total_cost_amount"/>
+        <result property="totalProfit" column="total_profit"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.neusoft.coursemgr.domain.StockOut"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO stock_out_table
+            (drug_id, batch_id, out_type, quantity, retail_price, cost_price,
+             total_amount, operator_id, remark)
+        VALUES
+            (#{drugId}, #{batchId}, #{outType}, #{quantity}, #{retailPrice}, #{costPrice},
+             #{totalAmount}, #{operatorId}, #{remark})
+    </insert>
+
+    <select id="selectList" resultMap="StockOutVOResultMap">
+        SELECT
+            so.id,
+            so.drug_id,
+            d.drug_name,
+            d.spec AS drug_spec,
+            so.batch_id,
+            sb.batch_no,
+            sb.expire_date,
+            so.out_type,
+            CASE so.out_type
+                WHEN 1 THEN '销售'
+                WHEN 2 THEN '损耗'
+                WHEN 3 THEN '退货'
+                ELSE '未知'
+            END AS out_type_name,
+            so.quantity,
+            so.retail_price,
+            so.cost_price,
+            so.total_amount,
+            so.operator_id,
+            u.username AS operator_username,
+            so.remark,
+            so.create_time
+        FROM stock_out_table so
+        LEFT JOIN drug_table d ON so.drug_id = d.id
+        LEFT JOIN stock_batch_table sb ON so.batch_id = sb.id
+        LEFT JOIN user_table u ON so.operator_id = u.id
+        <where>
+            <if test="drugId != null">
+                AND so.drug_id = #{drugId}
+            </if>
+            <if test="outType != null">
+                AND so.out_type = #{outType}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND DATE(so.create_time) &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND DATE(so.create_time) &lt;= #{endDate}
+            </if>
+        </where>
+        ORDER BY so.id DESC
+        <if test="offset != null and limit != null">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <select id="countList" resultType="long">
+        SELECT COUNT(*)
+        FROM stock_out_table so
+        <where>
+            <if test="drugId != null">
+                AND so.drug_id = #{drugId}
+            </if>
+            <if test="outType != null">
+                AND so.out_type = #{outType}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND DATE(so.create_time) &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND DATE(so.create_time) &lt;= #{endDate}
+            </if>
+        </where>
+    </select>
+
+    <!-- 统计区间内销售总额（out_type=1）、成本总额、利润 -->
+    <select id="sumByDateRange" resultMap="SummaryResultMap">
+        SELECT
+            COALESCE(SUM(CASE WHEN out_type = 1 THEN total_amount ELSE 0 END), 0) AS total_sales_amount,
+            COALESCE(SUM(cost_price * quantity), 0)                                AS total_cost_amount,
+            COALESCE(SUM(CASE WHEN out_type = 1 THEN total_amount ELSE 0 END)
+                   - SUM(cost_price * quantity), 0)                                AS total_profit
+        FROM stock_out_table
+        <where>
+            <if test="startDate != null and startDate != ''">
+                AND DATE(create_time) &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND DATE(create_time) &lt;= #{endDate}
+            </if>
+        </where>
+    </select>
+
+</mapper>

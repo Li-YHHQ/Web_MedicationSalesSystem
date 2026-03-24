@@ -38,6 +38,12 @@
         WHERE id = #{id}
     </update>
 
+    <update id="updateStatus">
+        UPDATE stock_batch_table
+        SET status = #{status}
+        WHERE id = #{id}
+    </update>
+
     <select id="selectById" resultMap="StockBatchResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM stock_batch_table

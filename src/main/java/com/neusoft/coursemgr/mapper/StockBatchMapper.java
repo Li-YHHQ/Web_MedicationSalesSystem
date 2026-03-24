@@ -13,6 +13,8 @@ public interface StockBatchMapper {
 
     int updateQuantity(@Param("id") Integer id, @Param("quantity") Integer quantity);
 
+    int updateStatus(@Param("id") Integer id, @Param("status") Integer status);
+
     StockBatch selectById(@Param("id") Integer id);
 
     List<StockBatch> selectByDrugId(@Param("drugId") Integer drugId);
