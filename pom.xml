@@ -110,6 +110,13 @@
             <artifactId>sentry-spring-boot-starter-jakarta</artifactId>
             <version>7.14.0</version>
         </dependency>
+
+        <!-- EasyExcel -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>easyexcel</artifactId>
+            <version>3.3.3</version>
+        </dependency>
     </dependencies>
 
     <build>

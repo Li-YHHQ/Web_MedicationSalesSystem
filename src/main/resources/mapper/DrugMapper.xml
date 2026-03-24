@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neusoft.coursemgr.mapper.DrugMapper">
+
+    <resultMap id="DrugResultMap" type="com.neusoft.coursemgr.domain.Drug">
+        <id property="id" column="id"/>
+        <result property="drugCode" column="drug_code"/>
+        <result property="drugName" column="drug_name"/>
+        <result property="commonName" column="common_name"/>
+        <result property="category" column="category"/>
+        <result property="unit" column="unit"/>
+        <result property="spec" column="spec"/>
+        <result property="manufacturer" column="manufacturer"/>
+        <result property="approvalNo" column="approval_no"/>
+        <result property="barcode" column="barcode"/>
+        <result property="costPrice" column="cost_price"/>
+        <result property="retailPrice" column="retail_price"/>
+        <result property="stockMin" column="stock_min"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, drug_code, drug_name, common_name, category, unit, spec, manufacturer,
+        approval_no, barcode, cost_price, retail_price, stock_min, status, create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="com.neusoft.coursemgr.domain.Drug"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO drug_table (drug_code, drug_name, common_name, category, unit, spec,
+                                manufacturer, approval_no, barcode, cost_price, retail_price,
+                                stock_min, status)
+        VALUES (#{drugCode}, #{drugName}, #{commonName}, #{category}, #{unit}, #{spec},
+                #{manufacturer}, #{approvalNo}, #{barcode}, #{costPrice}, #{retailPrice},
+                #{stockMin}, #{status})
+    </insert>
+
+    <update id="updateById" parameterType="com.neusoft.coursemgr.domain.Drug">
+        UPDATE drug_table
+        <set>
+            <if test="drugName != null">drug_name = #{drugName},</if>
+            <if test="commonName != null">common_name = #{commonName},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="unit != null">unit = #{unit},</if>
+            <if test="spec != null">spec = #{spec},</if>
+            <if test="manufacturer != null">manufacturer = #{manufacturer},</if>
+            <if test="approvalNo != null">approval_no = #{approvalNo},</if>
+            <if test="barcode != null">barcode = #{barcode},</if>
+            <if test="costPrice != null">cost_price = #{costPrice},</if>
+            <if test="retailPrice != null">retail_price = #{retailPrice},</if>
+            <if test="stockMin != null">stock_min = #{stockMin},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 软删除：将 status 置为 0 -->
+    <update id="deleteById">
+        UPDATE drug_table SET status = 0 WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultMap="DrugResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM drug_table
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByDrugCode" resultMap="DrugResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM drug_table
+        WHERE drug_code = #{drugCode}
+        LIMIT 1
+    </select>
+
+    <select id="selectList" resultMap="DrugResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM drug_table
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (drug_name LIKE CONCAT('%', #{keyword}, '%')
+                    OR common_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </where>
+        ORDER BY id DESC
+        <if test="offset != null and limit != null">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <select id="countList" resultType="long">
+        SELECT COUNT(*)
+        FROM drug_table
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (drug_name LIKE CONCAT('%', #{keyword}, '%')
+                    OR common_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </where>
+    </select>
+
+</mapper>
