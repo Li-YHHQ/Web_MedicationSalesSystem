@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neusoft.coursemgr.mapper.SupplierMapper">
+
+    <resultMap id="SupplierResultMap" type="com.neusoft.coursemgr.domain.Supplier">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="contact" column="contact"/>
+        <result property="phone" column="phone"/>
+        <result property="address" column="address"/>
+        <result property="remark" column="remark"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, name, contact, phone, address, remark, status, create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="com.neusoft.coursemgr.domain.Supplier"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO supplier_table (name, contact, phone, address, remark, status)
+        VALUES (#{name}, #{contact}, #{phone}, #{address}, #{remark}, #{status})
+    </insert>
+
+    <update id="updateById" parameterType="com.neusoft.coursemgr.domain.Supplier">
+        UPDATE supplier_table
+        <set>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="contact != null">contact = #{contact},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="address != null">address = #{address},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 软删除：将 status 置为 0 -->
+    <update id="deleteById">
+        UPDATE supplier_table SET status = 0 WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultMap="SupplierResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM supplier_table
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectList" resultMap="SupplierResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM supplier_table
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%')
+                    OR contact LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </where>
+        ORDER BY id DESC
+        <if test="offset != null and limit != null">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <select id="countList" resultType="long">
+        SELECT COUNT(*)
+        FROM supplier_table
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%')
+                    OR contact LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </where>
+    </select>
+
+</mapper>
