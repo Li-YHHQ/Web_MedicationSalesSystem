@@ -77,7 +77,9 @@
 
     <!-- 查询当前库存低于 drug_table.stock_min 的批次 -->
     <select id="selectLowStock" resultMap="StockBatchResultMap">
-        SELECT sb.<include refid="Base_Column_List"/>
+        SELECT sb.id, sb.drug_id, sb.batch_no, sb.produce_date, sb.expire_date,
+               sb.stock_in_date, sb.quantity, sb.cost_price, sb.supplier_id,
+               sb.status, sb.create_time, sb.update_time
         FROM stock_batch_table sb
         JOIN drug_table d ON sb.drug_id = d.id
         WHERE sb.status = 1
