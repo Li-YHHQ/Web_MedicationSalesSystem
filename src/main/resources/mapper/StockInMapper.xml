@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neusoft.coursemgr.mapper.StockInMapper">
+
+    <resultMap id="StockInVOResultMap" type="com.neusoft.coursemgr.domain.StockInVO">
+        <id property="id" column="id"/>
+        <result property="drugId" column="drug_id"/>
+        <result property="drugName" column="drug_name"/>
+        <result property="batchId" column="batch_id"/>
+        <result property="batchNo" column="batch_no"/>
+        <result property="quantity" column="quantity"/>
+        <result property="costPrice" column="cost_price"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="supplierId" column="supplier_id"/>
+        <result property="supplierName" column="supplier_name"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="operatorUsername" column="operator_username"/>
+        <result property="remark" column="remark"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.neusoft.coursemgr.domain.StockIn"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO stock_in_table
+            (drug_id, batch_id, quantity, cost_price, total_amount,
+             supplier_id, operator_id, remark)
+        VALUES
+            (#{drugId}, #{batchId}, #{quantity}, #{costPrice}, #{totalAmount},
+             #{supplierId}, #{operatorId}, #{remark})
+    </insert>
+
+    <select id="selectList" resultMap="StockInVOResultMap">
+        SELECT
+            si.id,
+            si.drug_id,
+            d.drug_name,
+            si.batch_id,
+            sb.batch_no,
+            si.quantity,
+            si.cost_price,
+            si.total_amount,
+            si.supplier_id,
+            s.name AS supplier_name,
+            si.operator_id,
+            u.username AS operator_username,
+            si.remark,
+            si.create_time
+        FROM stock_in_table si
+        LEFT JOIN drug_table d ON si.drug_id = d.id
+        LEFT JOIN stock_batch_table sb ON si.batch_id = sb.id
+        LEFT JOIN supplier_table s ON si.supplier_id = s.id
+        LEFT JOIN user_table u ON si.operator_id = u.id
+        <where>
+            <if test="drugId != null">
+                AND si.drug_id = #{drugId}
+            </if>
+            <if test="supplierId != null">
+                AND si.supplier_id = #{supplierId}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND DATE(si.create_time) &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND DATE(si.create_time) &lt;= #{endDate}
+            </if>
+        </where>
+        ORDER BY si.id DESC
+        <if test="offset != null and limit != null">
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+
+    <select id="countList" resultType="long">
+        SELECT COUNT(*)
+        FROM stock_in_table si
+        <where>
+            <if test="drugId != null">
+                AND si.drug_id = #{drugId}
+            </if>
+            <if test="supplierId != null">
+                AND si.supplier_id = #{supplierId}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND DATE(si.create_time) &gt;= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND DATE(si.create_time) &lt;= #{endDate}
+            </if>
+        </where>
+    </select>
+
+</mapper>
