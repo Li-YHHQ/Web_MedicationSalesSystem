@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neusoft.coursemgr.mapper.DashboardMapper">
+
+    <!-- 统计状态正常的药品总数 -->
+    <select id="countTotalDrugs" resultType="int">
+        SELECT COUNT(*) FROM drug_table WHERE status = 1
+    </select>
+
+    <!-- 统计所有正常批次的库存总量 -->
+    <select id="sumTotalStock" resultType="long">
+        SELECT COALESCE(SUM(quantity), 0) FROM stock_batch_table WHERE status = 1
+    </select>
+
+</mapper>
