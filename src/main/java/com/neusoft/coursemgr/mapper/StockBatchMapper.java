@@ -23,6 +23,9 @@ public interface StockBatchMapper {
     StockBatch selectByDrugIdAndBatchNo(@Param("drugId") Integer drugId,
                                         @Param("batchNo") String batchNo);
 
+    /** 更新批次的效期、生产日期、批号、入库日期（用于效期表导入回填） */
+    int updateBatchInfo(StockBatch batch);
+
     List<StockBatch> selectExpiringSoon(@Param("days") Integer days);
 
     List<StockBatch> selectLowStock();

@@ -2,7 +2,8 @@ package com.neusoft.coursemgr.controller;
 
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
-import com.alibaba.excel.read.listener.ReadListener;
+import com.alibaba.excel.event.AnalysisEventListener;
+import com.alibaba.excel.metadata.data.ReadCellData;
 import com.neusoft.coursemgr.common.ApiResponse;
 import com.neusoft.coursemgr.common.PageResult;
 import com.neusoft.coursemgr.domain.CreateDrugRequest;
@@ -22,8 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -103,26 +103,45 @@ public class DrugController {
         }
     }
 
+    /**
+     * 从 Excel 导入药品或效期批次。
+     * <p>
+     * 自动识别格式：读取第一行表头后：
+     * <ul>
+     *   <li>包含"有效期"列 → 格式二（效期批次表），调用 importBatches</li>
+     *   <li>否则             → 格式一（药品档案表），调用 importDrugs</li>
+     * </ul>
+     * 两种格式均通过列名匹配，与列顺序无关。
+     */
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "从 Excel 导入药品")
+    @Operation(summary = "从 Excel 导入药品（支持药品档案表/效期批次表两种格式）")
     public ApiResponse<String> importExcel(
             @RequestPart("file") MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new BizException(400, "文件不能为空");
         }
 
-        DrugImportListener listener = new DrugImportListener();
-        EasyExcel.read(file.getInputStream(), DrugExcelVO.class, listener)
+        FlexibleImportListener listener = new FlexibleImportListener();
+        EasyExcel.read(file.getInputStream())
+                .registerReadListener(listener)
                 .sheet()
                 .doRead();
 
-        List<Drug> drugs = listener.getList().stream()
-                .map(DrugController::fromExcelVO)
-                .collect(Collectors.toList());
+        if (listener.getNameToIdx().isEmpty()) {
+            throw new BizException(400, "Excel 表头为空，无法识别格式");
+        }
 
-        drugService.importDrugs(drugs);
+        if (listener.isBatchFormat()) {
+            drugService.importBatches(listener.getNameToIdx(), listener.getRows());
+        } else {
+            drugService.importDrugs(listener.getNameToIdx(), listener.getRows());
+        }
         return ApiResponse.ok("imported", "success");
     }
+
+    // -------------------------------------------------------------------------
+    // 导出辅助
+    // -------------------------------------------------------------------------
 
     private static DrugExcelVO toDrugExcelVO(Drug drug) {
         DrugExcelVO vo = new DrugExcelVO();
@@ -141,38 +160,48 @@ public class DrugController {
         return vo;
     }
 
-    private static Drug fromExcelVO(DrugExcelVO vo) {
-        Drug drug = new Drug();
-        drug.setDrugCode(vo.getDrugCode());
-        drug.setDrugName(vo.getDrugName());
-        drug.setCommonName(vo.getCommonName());
-        drug.setCategory(vo.getCategory());
-        drug.setUnit(vo.getUnit());
-        drug.setSpec(vo.getSpec());
-        drug.setManufacturer(vo.getManufacturer());
-        drug.setApprovalNo(vo.getApprovalNo());
-        drug.setBarcode(vo.getBarcode());
-        drug.setCostPrice(vo.getCostPrice());
-        drug.setRetailPrice(vo.getRetailPrice());
-        drug.setStockMin(vo.getStockMin());
-        return drug;
-    }
+    // -------------------------------------------------------------------------
+    // 按列名动态解析的 EasyExcel Listener
+    // -------------------------------------------------------------------------
 
-    private static class DrugImportListener implements ReadListener<DrugExcelVO> {
-        private final List<DrugExcelVO> list = new ArrayList<>();
+    /**
+     * 读取任意列顺序的 Excel，在 invokeHead 回调中建立"列名 → 列索引"映射，
+     * 在 invoke 回调中以 Map&lt;Integer, String&gt; 存储每行原始数据。
+     */
+    private static class FlexibleImportListener extends AnalysisEventListener<Map<Integer, String>> {
+
+        /** 列名 → 列索引 */
+        private final Map<String, Integer> nameToIdx = new LinkedHashMap<>();
+        /** 所有数据行（列索引 → 单元格字符串值） */
+        private final List<Map<Integer, String>> rows = new ArrayList<>();
 
         @Override
-        public void invoke(DrugExcelVO data, AnalysisContext context) {
-            list.add(data);
+        public void invokeHead(Map<Integer, ReadCellData<?>> headMap, AnalysisContext context) {
+            headMap.forEach((idx, cell) -> {
+                String name = cell.getStringValue();
+                if (name != null && !name.isBlank()) {
+                    nameToIdx.put(name.trim(), idx);
+                }
+            });
+        }
+
+        @Override
+        public void invoke(Map<Integer, String> data, AnalysisContext context) {
+            rows.add(data);
         }
 
         @Override
         public void doAfterAllAnalysed(AnalysisContext context) {
-            // 所有行解析完成，数据在 list 中
+            // 全部解析完毕，数据已在 rows 中
         }
 
-        public List<DrugExcelVO> getList() {
-            return list;
+        /** 是否为效期批次表格式（含"有效期"列） */
+        public boolean isBatchFormat() {
+            return nameToIdx.containsKey("有效期");
         }
+
+        public Map<String, Integer> getNameToIdx() { return nameToIdx; }
+
+        public List<Map<Integer, String>> getRows() { return rows; }
     }
 }
