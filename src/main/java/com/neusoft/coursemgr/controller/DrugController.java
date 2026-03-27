@@ -22,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -122,7 +123,12 @@ public class DrugController {
         }
 
         FlexibleImportListener listener = new FlexibleImportListener();
+        // .xls 文件内部字符串按工作簿 Codepage（GBK/936）存储；
+        // 显式指定 GBK 让 EasyExcel 透传给 POI 的字符串解码器，
+        // 避免用 ISO-8859-1 解码 GBK 字节导致中文列名乱码。
+        // 对 .xlsx 文件无影响（XML 自描述编码，不使用此参数）。
         EasyExcel.read(file.getInputStream())
+                .charset(Charset.forName("GBK"))
                 .registerReadListener(listener)
                 .sheet()
                 .doRead();
