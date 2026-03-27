@@ -65,6 +65,18 @@
         LIMIT 1
     </select>
 
+    <!-- 回填批次的效期、生产日期、批号、入库日期 -->
+    <update id="updateBatchInfo" parameterType="com.neusoft.coursemgr.domain.StockBatch">
+        UPDATE stock_batch_table
+        <set>
+            <if test="batchNo != null">batch_no = #{batchNo},</if>
+            <if test="produceDate != null">produce_date = #{produceDate},</if>
+            <if test="expireDate != null">expire_date = #{expireDate},</if>
+            <if test="stockInDate != null">stock_in_date = #{stockInDate},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
     <!-- 查询距离过期 days 天以内（含当天）且尚未过期的批次 -->
     <select id="selectExpiringSoon" resultMap="StockBatchResultMap">
         SELECT <include refid="Base_Column_List"/>
