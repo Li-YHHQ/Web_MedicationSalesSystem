@@ -25,16 +25,14 @@ public interface DrugService {
     /**
      * 格式一（药品档案表）导入：按列名匹配，支持新增/更新药品及初始库存批次。
      *
-     * @param nameToIdx 表头列名 → 列索引映射
-     * @param rows      数据行列表（列索引 → 单元格字符串值）
+     * @param rows 数据行列表，每行为 Map&lt;列名, 单元格字符串值&gt;
      */
-    void importDrugs(Map<String, Integer> nameToIdx, List<Map<Integer, String>> rows);
+    void importDrugs(List<Map<String, String>> rows);
 
     /**
      * 格式二（效期批次表）导入：按药品编码查找药品，回填或新建批次。
      *
-     * @param nameToIdx 表头列名 → 列索引映射
-     * @param rows      数据行列表（列索引 → 单元格字符串值）
+     * @param rows 数据行列表，每行为 Map&lt;列名, 单元格字符串值&gt;
      */
-    void importBatches(Map<String, Integer> nameToIdx, List<Map<Integer, String>> rows);
+    void importBatches(List<Map<String, String>> rows);
 }

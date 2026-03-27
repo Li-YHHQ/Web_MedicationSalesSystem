@@ -1,9 +1,6 @@
 package com.neusoft.coursemgr.controller;
 
 import com.alibaba.excel.EasyExcel;
-import com.alibaba.excel.context.AnalysisContext;
-import com.alibaba.excel.event.AnalysisEventListener;
-import com.alibaba.excel.metadata.data.ReadCellData;
 import com.neusoft.coursemgr.common.ApiResponse;
 import com.neusoft.coursemgr.common.PageResult;
 import com.neusoft.coursemgr.domain.CreateDrugRequest;
@@ -16,13 +13,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.URLEncoder;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -107,12 +106,12 @@ public class DrugController {
     /**
      * 从 Excel 导入药品或效期批次。
      * <p>
-     * 自动识别格式：读取第一行表头后：
+     * 使用 Apache POI 直接读取：
      * <ul>
-     *   <li>包含"有效期"列 → 格式二（效期批次表），调用 importBatches</li>
-     *   <li>否则             → 格式一（药品档案表），调用 importDrugs</li>
+     *   <li>.xls → HSSFWorkbook（POI 从文件 Codepage 记录自动识别 GBK 编码）</li>
+     *   <li>.xlsx → XSSFWorkbook（XML 内部 UTF-8，无编码问题）</li>
      * </ul>
-     * 两种格式均通过列名匹配，与列顺序无关。
+     * 自动识别格式：表头含"有效期"列 → 效期批次表，否则 → 药品档案表。
      */
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "从 Excel 导入药品（支持药品档案表/效期批次表两种格式）")
@@ -122,25 +121,61 @@ public class DrugController {
             throw new BizException(400, "文件不能为空");
         }
 
-        FlexibleImportListener listener = new FlexibleImportListener();
-        // .xls 文件内部字符串按工作簿 Codepage（GBK/936）存储；
-        // 显式指定 GBK 让 EasyExcel 透传给 POI 的字符串解码器，
-        // 避免用 ISO-8859-1 解码 GBK 字节导致中文列名乱码。
-        // 对 .xlsx 文件无影响（XML 自描述编码，不使用此参数）。
-        EasyExcel.read(file.getInputStream())
-                .charset(Charset.forName("GBK"))
-                .registerReadListener(listener)
-                .sheet()
-                .doRead();
-
-        if (listener.getNameToIdx().isEmpty()) {
-            throw new BizException(400, "Excel 表头为空，无法识别格式");
+        String filename = file.getOriginalFilename();
+        if (filename == null) {
+            throw new BizException(400, "无法识别文件格式");
         }
+        String lower = filename.toLowerCase();
+        if (!lower.endsWith(".xls") && !lower.endsWith(".xlsx")) {
+            throw new BizException(400, "仅支持 .xls 或 .xlsx 格式");
+        }
+        // .xls 后缀但不是 .xlsx 才走 HSSF（老格式）
+        boolean isXls = lower.endsWith(".xls") && !lower.endsWith(".xlsx");
 
-        if (listener.isBatchFormat()) {
-            drugService.importBatches(listener.getNameToIdx(), listener.getRows());
-        } else {
-            drugService.importDrugs(listener.getNameToIdx(), listener.getRows());
+        try (Workbook workbook = isXls
+                ? new HSSFWorkbook(file.getInputStream())
+                : new XSSFWorkbook(file.getInputStream())) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+
+            // 读取第一行表头，建立列索引 → 列名 的映射
+            Row headerRow = sheet.getRow(0);
+            if (headerRow == null) {
+                throw new BizException(400, "表头行为空，无法识别格式");
+            }
+            DataFormatter formatter = new DataFormatter();
+            Map<Integer, String> idxToName = new LinkedHashMap<>();
+            for (Cell cell : headerRow) {
+                String name = formatter.formatCellValue(cell).trim();
+                if (!name.isEmpty()) {
+                    idxToName.put(cell.getColumnIndex(), name);
+                }
+            }
+            if (idxToName.isEmpty()) {
+                throw new BizException(400, "表头为空，无法识别格式");
+            }
+
+            // 遍历数据行，构建 List<Map<列名, 值>>
+            List<Map<String, String>> rows = new ArrayList<>();
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                Map<String, String> rowMap = new LinkedHashMap<>();
+                for (Map.Entry<Integer, String> entry : idxToName.entrySet()) {
+                    Cell cell = row.getCell(entry.getKey(),
+                            Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                    rowMap.put(entry.getValue(), cellValue(cell, formatter));
+                }
+                rows.add(rowMap);
+            }
+
+            // 表头含"有效期"列 → 格式二（效期批次表）
+            boolean isBatchFormat = idxToName.containsValue("有效期");
+            if (isBatchFormat) {
+                drugService.importBatches(rows);
+            } else {
+                drugService.importDrugs(rows);
+            }
         }
         return ApiResponse.ok("imported", "success");
     }
@@ -167,47 +202,46 @@ public class DrugController {
     }
 
     // -------------------------------------------------------------------------
-    // 按列名动态解析的 EasyExcel Listener
+    // POI 单元格读取
     // -------------------------------------------------------------------------
 
     /**
-     * 读取任意列顺序的 Excel，在 invokeHead 回调中建立"列名 → 列索引"映射，
-     * 在 invoke 回调中以 Map&lt;Integer, String&gt; 存储每行原始数据。
+     * 将 POI Cell 转为字符串：
+     * <ul>
+     *   <li>字符串单元格：直接返回原始文本</li>
+     *   <li>数字日期单元格：转为 ISO 日期字符串（yyyy-MM-dd），
+     *       确保 Service 层的 parseDate() 能正确解析</li>
+     *   <li>普通数字单元格：整数去掉 .0，小数保留</li>
+     *   <li>公式单元格：用 DataFormatter 取计算结果文本</li>
+     *   <li>空单元格：返回 null</li>
+     * </ul>
      */
-    private static class FlexibleImportListener extends AnalysisEventListener<Map<Integer, String>> {
-
-        /** 列名 → 列索引 */
-        private final Map<String, Integer> nameToIdx = new LinkedHashMap<>();
-        /** 所有数据行（列索引 → 单元格字符串值） */
-        private final List<Map<Integer, String>> rows = new ArrayList<>();
-
-        @Override
-        public void invokeHead(Map<Integer, ReadCellData<?>> headMap, AnalysisContext context) {
-            headMap.forEach((idx, cell) -> {
-                String name = cell.getStringValue();
-                if (name != null && !name.isBlank()) {
-                    nameToIdx.put(name.trim(), idx);
+    private static String cellValue(Cell cell, DataFormatter formatter) {
+        if (cell == null) return null;
+        switch (cell.getCellType()) {
+            case STRING: {
+                String s = cell.getStringCellValue();
+                return s.isBlank() ? null : s;
+            }
+            case NUMERIC: {
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    // 日期格式单元格直接取 LocalDate，统一输出 ISO 格式
+                    return cell.getLocalDateTimeCellValue().toLocalDate().toString();
                 }
-            });
+                double d = cell.getNumericCellValue();
+                // 整数去掉 .0（如库存 10.0 → "10"）
+                if (d == Math.floor(d) && !Double.isInfinite(d)) {
+                    return String.valueOf((long) d);
+                }
+                return String.valueOf(d);
+            }
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            case FORMULA:
+                return formatter.formatCellValue(cell);
+            case BLANK:
+            default:
+                return null;
         }
-
-        @Override
-        public void invoke(Map<Integer, String> data, AnalysisContext context) {
-            rows.add(data);
-        }
-
-        @Override
-        public void doAfterAllAnalysed(AnalysisContext context) {
-            // 全部解析完毕，数据已在 rows 中
-        }
-
-        /** 是否为效期批次表格式（含"有效期"列） */
-        public boolean isBatchFormat() {
-            return nameToIdx.containsKey("有效期");
-        }
-
-        public Map<String, Integer> getNameToIdx() { return nameToIdx; }
-
-        public List<Map<Integer, String>> getRows() { return rows; }
     }
 }
