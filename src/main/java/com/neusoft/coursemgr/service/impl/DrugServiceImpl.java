@@ -119,11 +119,11 @@ public class DrugServiceImpl implements DrugService {
     // 格式一：药品档案表导入
     // -------------------------------------------------------------------------
     @Override
-    public void importDrugs(Map<String, Integer> nameToIdx, List<Map<Integer, String>> rows) {
+    public void importDrugs(List<Map<String, String>> rows) {
         int imported = 0, updated = 0, skipped = 0;
-        for (Map<Integer, String> row : rows) {
-            String drugCode = str(row, nameToIdx, "药品编码");
-            String drugName = str(row, nameToIdx, "药品名称");
+        for (Map<String, String> row : rows) {
+            String drugCode = str(row, "药品编码");
+            String drugName = str(row, "药品名称");
             if (isBlank(drugCode) || isBlank(drugName)) {
                 skipped++;
                 continue;
@@ -136,16 +136,16 @@ public class DrugServiceImpl implements DrugService {
                 drug = new Drug();
                 drug.setId(existing.getId());
                 drug.setDrugName(drugName);
-                drug.setCommonName(str(row, nameToIdx, "通用名称"));
-                drug.setCategory(str(row, nameToIdx, "类别"));
-                drug.setUnit(str(row, nameToIdx, "单位"));
-                drug.setSpec(str(row, nameToIdx, "规格"));
-                drug.setManufacturer(str(row, nameToIdx, "生产厂家"));
-                drug.setApprovalNo(str(row, nameToIdx, "批准文号"));
-                drug.setBarcode(str(row, nameToIdx, "条码"));
-                drug.setCostPrice(decimal(row, nameToIdx, "成本价"));
-                drug.setRetailPrice(decimal(row, nameToIdx, "零售价"));
-                drug.setStockMin(integer(row, nameToIdx, "库存下限"));
+                drug.setCommonName(str(row, "通用名称"));
+                drug.setCategory(str(row, "类别"));
+                drug.setUnit(str(row, "单位"));
+                drug.setSpec(str(row, "规格"));
+                drug.setManufacturer(str(row, "生产厂家"));
+                drug.setApprovalNo(str(row, "批准文号"));
+                drug.setBarcode(str(row, "条码"));
+                drug.setCostPrice(decimal(row, "成本价"));
+                drug.setRetailPrice(decimal(row, "零售价"));
+                drug.setStockMin(integer(row, "库存下限"));
                 drugMapper.updateById(drug);
                 updated++;
             } else {
@@ -153,16 +153,16 @@ public class DrugServiceImpl implements DrugService {
                 drug = new Drug();
                 drug.setDrugCode(drugCode);
                 drug.setDrugName(drugName);
-                drug.setCommonName(str(row, nameToIdx, "通用名称"));
-                drug.setCategory(str(row, nameToIdx, "类别"));
-                drug.setUnit(str(row, nameToIdx, "单位"));
-                drug.setSpec(str(row, nameToIdx, "规格"));
-                drug.setManufacturer(str(row, nameToIdx, "生产厂家"));
-                drug.setApprovalNo(str(row, nameToIdx, "批准文号"));
-                drug.setBarcode(str(row, nameToIdx, "条码"));
-                drug.setCostPrice(decimal(row, nameToIdx, "成本价"));
-                drug.setRetailPrice(decimal(row, nameToIdx, "零售价"));
-                Integer stockMin = integer(row, nameToIdx, "库存下限");
+                drug.setCommonName(str(row, "通用名称"));
+                drug.setCategory(str(row, "类别"));
+                drug.setUnit(str(row, "单位"));
+                drug.setSpec(str(row, "规格"));
+                drug.setManufacturer(str(row, "生产厂家"));
+                drug.setApprovalNo(str(row, "批准文号"));
+                drug.setBarcode(str(row, "条码"));
+                drug.setCostPrice(decimal(row, "成本价"));
+                drug.setRetailPrice(decimal(row, "零售价"));
+                Integer stockMin = integer(row, "库存下限");
                 drug.setStockMin(stockMin != null ? stockMin : 0);
                 drug.setStatus(1);
                 drugMapper.insert(drug);
@@ -170,13 +170,13 @@ public class DrugServiceImpl implements DrugService {
             }
 
             // 如果有"药品库存"列且值 > 0，创建初始批次
-            Integer initQty = integer(row, nameToIdx, "药品库存");
+            Integer initQty = integer(row, "药品库存");
             if (initQty != null && initQty > 0) {
                 StockBatch batch = new StockBatch();
                 batch.setDrugId(drug.getId());
                 batch.setBatchNo("初始批次");
                 batch.setQuantity(initQty);
-                batch.setCostPrice(decimal(row, nameToIdx, "成本价"));
+                batch.setCostPrice(decimal(row, "成本价"));
                 batch.setExpireDate(LocalDate.of(2099, 12, 31));
                 batch.setStockInDate(LocalDate.now());
                 batch.setStatus(1);
@@ -190,10 +190,10 @@ public class DrugServiceImpl implements DrugService {
     // 格式二：效期批次表导入
     // -------------------------------------------------------------------------
     @Override
-    public void importBatches(Map<String, Integer> nameToIdx, List<Map<Integer, String>> rows) {
+    public void importBatches(List<Map<String, String>> rows) {
         int updated = 0, inserted = 0, skipped = 0;
-        for (Map<Integer, String> row : rows) {
-            String drugCode = str(row, nameToIdx, "药品编码");
+        for (Map<String, String> row : rows) {
+            String drugCode = str(row, "药品编码");
             if (isBlank(drugCode)) {
                 skipped++;
                 continue;
@@ -205,10 +205,10 @@ public class DrugServiceImpl implements DrugService {
                 continue;
             }
 
-            LocalDate expireDate  = parseDate(str(row, nameToIdx, "有效期"));
-            LocalDate produceDate = parseDate(str(row, nameToIdx, "生产日期"));
-            LocalDate stockInDate = parseDate(str(row, nameToIdx, "入库日期"));
-            String    batchNo     = str(row, nameToIdx, "生产批号");
+            LocalDate expireDate  = parseDate(str(row, "有效期"));
+            LocalDate produceDate = parseDate(str(row, "生产日期"));
+            LocalDate stockInDate = parseDate(str(row, "入库日期"));
+            String    batchNo     = str(row, "生产批号");
 
             // 查找该药品的"初始批次"
             StockBatch existing = stockBatchMapper.selectByDrugIdAndBatchNo(drug.getId(), "初始批次");
@@ -232,7 +232,7 @@ public class DrugServiceImpl implements DrugService {
                 batch.setExpireDate(expireDate);
                 batch.setProduceDate(produceDate);
                 batch.setStockInDate(stockInDate != null ? stockInDate : LocalDate.now());
-                Integer qty = integer(row, nameToIdx, "库存数量");
+                Integer qty = integer(row, "库存数量");
                 batch.setQuantity(qty != null ? qty : 0);
                 batch.setStatus(1);
                 stockBatchMapper.insert(batch);
@@ -246,24 +246,22 @@ public class DrugServiceImpl implements DrugService {
     // 工具方法
     // -------------------------------------------------------------------------
 
-    /** 按列名从行数据中取字符串，trim 后返回；列不存在或为空返回 null */
-    private static String str(Map<Integer, String> row, Map<String, Integer> nameToIdx, String colName) {
-        Integer idx = nameToIdx.get(colName);
-        if (idx == null) return null;
-        String val = row.get(idx);
+    /** 按列名取值并 trim，空值返回 null */
+    private static String str(Map<String, String> row, String colName) {
+        String val = row.get(colName);
         if (val == null) return null;
         String trimmed = val.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private static BigDecimal decimal(Map<Integer, String> row, Map<String, Integer> nameToIdx, String colName) {
-        String val = str(row, nameToIdx, colName);
+    private static BigDecimal decimal(Map<String, String> row, String colName) {
+        String val = str(row, colName);
         if (val == null) return null;
         try { return new BigDecimal(val); } catch (NumberFormatException e) { return null; }
     }
 
-    private static Integer integer(Map<Integer, String> row, Map<String, Integer> nameToIdx, String colName) {
-        String val = str(row, nameToIdx, colName);
+    private static Integer integer(Map<String, String> row, String colName) {
+        String val = str(row, colName);
         if (val == null) return null;
         try {
             // 兼容 Excel 数字可能带小数点（如 "10.0"）
@@ -273,13 +271,14 @@ public class DrugServiceImpl implements DrugService {
 
     /**
      * 解析日期字符串：兼容 "yyyy-MM-dd" 文本格式和 Excel 数字日期（从 1900-01-00 起的天数）。
+     * Controller 层对日期格式单元格已提前转为 ISO 格式，此处作为兜底处理。
      */
     static LocalDate parseDate(String value) {
         if (isBlank(value)) return null;
         String v = value.trim();
-        // 尝试标准字符串格式
+        // 优先尝试标准 ISO 格式（Controller 已统一输出此格式）
         try { return LocalDate.parse(v); } catch (Exception ignored) {}
-        // 尝试 Excel 数字日期（基准：1899-12-30）
+        // 兜底：Excel 数字日期（基准：1899-12-30）
         try {
             long days = (long) Double.parseDouble(v);
             return LocalDate.of(1899, 12, 30).plusDays(days);
