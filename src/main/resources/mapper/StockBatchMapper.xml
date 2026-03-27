@@ -15,6 +15,7 @@
         <result property="status" column="status"/>
         <result property="createTime" column="create_time"/>
         <result property="updateTime" column="update_time"/>
+        <result property="drugName" column="drug_name"/>
     </resultMap>
 
     <sql id="Base_Column_List">
@@ -77,21 +78,24 @@
         WHERE id = #{id}
     </update>
 
-    <!-- 查询距离过期 days 天以内（含当天）且尚未过期的批次 -->
+    <!-- 查询距离过期 days 天以内（含当天）且尚未过期的批次，含药品名称 -->
     <select id="selectExpiringSoon" resultMap="StockBatchResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM stock_batch_table
-        WHERE status = 1
-          AND DATEDIFF(expire_date, NOW()) &lt;= #{days}
-          AND DATEDIFF(expire_date, NOW()) &gt;= 0
-        ORDER BY expire_date ASC
+        SELECT sb.id, sb.drug_id, sb.batch_no, sb.produce_date, sb.expire_date,
+               sb.stock_in_date, sb.quantity, sb.cost_price, sb.supplier_id,
+               sb.status, sb.create_time, sb.update_time, d.drug_name
+        FROM stock_batch_table sb
+        JOIN drug_table d ON sb.drug_id = d.id
+        WHERE sb.status = 1
+          AND DATEDIFF(sb.expire_date, NOW()) &lt;= #{days}
+          AND DATEDIFF(sb.expire_date, NOW()) &gt;= 0
+        ORDER BY sb.expire_date ASC
     </select>
 
-    <!-- 查询当前库存低于 drug_table.stock_min 的批次 -->
+    <!-- 查询当前库存低于 drug_table.stock_min 的批次，含药品名称 -->
     <select id="selectLowStock" resultMap="StockBatchResultMap">
         SELECT sb.id, sb.drug_id, sb.batch_no, sb.produce_date, sb.expire_date,
                sb.stock_in_date, sb.quantity, sb.cost_price, sb.supplier_id,
-               sb.status, sb.create_time, sb.update_time
+               sb.status, sb.create_time, sb.update_time, d.drug_name
         FROM stock_batch_table sb
         JOIN drug_table d ON sb.drug_id = d.id
         WHERE sb.status = 1
