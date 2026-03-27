@@ -20,4 +20,6 @@ public class StockBatch {
     private Integer status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    /** 来自 drug_table.drug_name，仅查询时填充，写入时忽略 */
+    private String drugName;
 }
