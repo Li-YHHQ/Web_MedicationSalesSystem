@@ -30,8 +30,7 @@ public class StockSyncController {
 
     /**
      * 预览库存同步结果，不写入数据库。
-     * 接收 Excel 文件（.xls/.xlsx），读取"药品编码"和"药品库存"两列，
-     * 返回每条药品的变化类型及差值。
+     * 只需"药品编码"和"药品库存"两列做对比，其余列忽略。
      */
     @PostMapping(value = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "预览库存同步（不写库）")
@@ -39,13 +38,13 @@ public class StockSyncController {
             @RequestPart("file") MultipartFile file,
             @RequestParam("syncDate") String syncDate) throws IOException {
 
-        Map<String, Integer> drugStockMap = parseExcel(file);
+        Map<String, Integer> drugStockMap = parseExcelSimple(file);
         return ApiResponse.ok(stockSyncService.preview(drugStockMap, syncDate));
     }
 
     /**
      * 执行库存同步，写入数据库。
-     * 流程与 preview 一致，区别在于调用 confirm 进行实际写入。
+     * 读取 Excel 所有字段，NEW 分支可写入完整药品档案。
      */
     @PostMapping(value = "/confirm", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "执行库存同步（写库）")
@@ -53,24 +52,53 @@ public class StockSyncController {
             @RequestPart("file") MultipartFile file,
             @RequestParam("syncDate") String syncDate) throws IOException {
 
-        Map<String, Integer> drugStockMap = parseExcel(file);
-        stockSyncService.confirm(drugStockMap, syncDate);
+        Map<String, Map<String, String>> fullDataMap = parseExcelFull(file);
+        stockSyncService.confirm(fullDataMap, syncDate);
         return ApiResponse.ok("synced", "success");
     }
 
     // -------------------------------------------------------------------------
-    // Excel 解析（使用 Apache POI 直接读取，正确处理 .xls GBK 编码）
+    // Excel 解析
     // -------------------------------------------------------------------------
 
     /**
-     * 读取 Excel 第一个 Sheet，提取"药品编码"→"药品库存"的映射。
+     * preview 专用：只提取"药品编码"→"药品库存"两列，构建 Map&lt;String, Integer&gt;。
+     * 要求 Excel 必须同时包含这两列。
+     */
+    private static Map<String, Integer> parseExcelSimple(MultipartFile file) throws IOException {
+        Map<String, Map<String, String>> full = parseExcelFull(file);
+
+        // 校验"药品库存"列存在（至少有一行包含该 key）
+        boolean hasQtyCol = full.values().stream()
+                .anyMatch(row -> row.containsKey("药品库存"));
+        if (!hasQtyCol) {
+            throw new BizException(400, "Excel 缺少\"药品库存\"列");
+        }
+
+        Map<String, Integer> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, String>> e : full.entrySet()) {
+            String qtyStr = e.getValue().getOrDefault("药品库存", "");
+            if (qtyStr.isBlank()) continue;
+            try {
+                result.put(e.getKey(), (int) Double.parseDouble(qtyStr.trim()));
+            } catch (NumberFormatException ignored) {
+                // 无法解析的数量行跳过
+            }
+        }
+        return result;
+    }
+
+    /**
+     * confirm 专用：读取 Excel 所有列，构建 Map&lt;药品编码, Map&lt;列名, 值&gt;&gt;。
      * <ul>
-     *   <li>.xls → HSSFWorkbook（POI 从 Codepage 记录自动识别编码）</li>
+     *   <li>.xls → HSSFWorkbook（POI 从 Codepage 记录自动识别 GBK 编码）</li>
      *   <li>.xlsx → XSSFWorkbook</li>
      *   <li>药品编码若为纯数字，补零到 6 位（防止 Excel 丢失前导零）</li>
+     *   <li>单元格值缺失时存空字符串，调用方用 getOrDefault 取值即可</li>
      * </ul>
      */
-    private static Map<String, Integer> parseExcel(MultipartFile file) throws IOException {
+    private static Map<String, Map<String, String>> parseExcelFull(MultipartFile file)
+            throws IOException {
         if (file == null || file.isEmpty()) {
             throw new BizException(400, "文件不能为空");
         }
@@ -104,40 +132,39 @@ public class StockSyncController {
                 }
             }
 
-            // 找到"药品编码"和"药品库存"所在列索引
-            Integer codeIdx = null, qtyIdx = null;
+            // "药品编码"列必须存在
+            Integer codeIdx = null;
             for (Map.Entry<Integer, String> e : idxToName.entrySet()) {
-                if ("药品编码".equals(e.getValue())) codeIdx = e.getKey();
-                if ("药品库存".equals(e.getValue())) qtyIdx  = e.getKey();
+                if ("药品编码".equals(e.getValue())) {
+                    codeIdx = e.getKey();
+                    break;
+                }
             }
-            if (codeIdx == null) throw new BizException(400, "Excel 缺少\"药品编码\"列");
-            if (qtyIdx  == null) throw new BizException(400, "Excel 缺少\"药品库存\"列");
+            if (codeIdx == null) {
+                throw new BizException(400, "Excel 缺少\"药品编码\"列");
+            }
 
-            // 遍历数据行
-            Map<String, Integer> result = new LinkedHashMap<>();
+            // 遍历数据行，每行读取所有已知列
+            Map<String, Map<String, String>> result = new LinkedHashMap<>();
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
 
                 Cell codeCell = row.getCell(codeIdx, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                Cell qtyCell  = row.getCell(qtyIdx,  Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-
                 String drugCode = cellString(codeCell, formatter);
-                String qtyStr   = cellString(qtyCell,  formatter);
-
                 if (drugCode == null || drugCode.isBlank()) continue;
-                if (qtyStr   == null || qtyStr.isBlank())   continue;
 
                 // 纯数字编码补零到 6 位（防止 Excel 丢失前导零）
                 drugCode = padDrugCode(drugCode.trim());
 
-                int qty;
-                try {
-                    qty = (int) Double.parseDouble(qtyStr.trim());
-                } catch (NumberFormatException ex) {
-                    continue;   // 无法解析的数量行直接跳过
+                Map<String, String> rowMap = new LinkedHashMap<>();
+                for (Map.Entry<Integer, String> e : idxToName.entrySet()) {
+                    Cell cell = row.getCell(e.getKey(),
+                            Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                    String val = cellString(cell, formatter);
+                    rowMap.put(e.getValue(), val != null ? val : "");
                 }
-                result.put(drugCode, qty);
+                result.put(drugCode, rowMap);
             }
             return result;
         }

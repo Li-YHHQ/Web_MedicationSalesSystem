@@ -18,8 +18,8 @@ public interface StockSyncService {
     /**
      * 执行库存同步，写入数据库（事务保证原子性）。
      *
-     * @param drugStockMap 药品编码 → 新库存数量
-     * @param syncDate     同步日期（yyyy-MM-dd）
+     * @param fullDataMap 药品编码 → 该行所有列名→值的 Map（完整 Excel 行数据）
+     * @param syncDate    同步日期（yyyy-MM-dd）
      */
-    void confirm(Map<String, Integer> drugStockMap, String syncDate);
+    void confirm(Map<String, Map<String, String>> fullDataMap, String syncDate);
 }
