@@ -110,8 +110,8 @@ public class StockSyncController {
                 if ("药品编码".equals(e.getValue())) codeIdx = e.getKey();
                 if ("药品库存".equals(e.getValue())) qtyIdx  = e.getKey();
             }
-            if (codeIdx == null) throw new BizException(400, "Excel 缺少"药品编码"列");
-            if (qtyIdx  == null) throw new BizException(400, "Excel 缺少"药品库存"列");
+            if (codeIdx == null) throw new BizException(400, "Excel 缺少\"药品编码\"列");
+            if (qtyIdx  == null) throw new BizException(400, "Excel 缺少\"药品库存\"列");
 
             // 遍历数据行
             Map<String, Integer> result = new LinkedHashMap<>();
