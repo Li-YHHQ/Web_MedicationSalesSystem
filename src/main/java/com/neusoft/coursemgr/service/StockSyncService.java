@@ -1,0 +1,25 @@
+package com.neusoft.coursemgr.service;
+
+import com.neusoft.coursemgr.domain.StockSyncPreview;
+
+import java.util.Map;
+
+public interface StockSyncService {
+
+    /**
+     * 预览库存同步结果，不写入数据库。
+     *
+     * @param drugStockMap 药品编码 → 新库存数量
+     * @param syncDate     同步日期（yyyy-MM-dd），用作入/出库日期
+     * @return 预览结果
+     */
+    StockSyncPreview preview(Map<String, Integer> drugStockMap, String syncDate);
+
+    /**
+     * 执行库存同步，写入数据库（事务保证原子性）。
+     *
+     * @param drugStockMap 药品编码 → 新库存数量
+     * @param syncDate     同步日期（yyyy-MM-dd）
+     */
+    void confirm(Map<String, Integer> drugStockMap, String syncDate);
+}
