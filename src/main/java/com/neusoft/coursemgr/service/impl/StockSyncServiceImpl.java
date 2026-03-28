@@ -71,29 +71,30 @@ public class StockSyncServiceImpl implements StockSyncService {
     }
 
     // -------------------------------------------------------------------------
-    // confirm — 事务写库
+    // confirm — 事务写库（接收完整行数据，NEW 分支可写入完整药品档案）
     // -------------------------------------------------------------------------
 
     @Override
     @Transactional
-    public void confirm(Map<String, Integer> drugStockMap, String syncDate) {
+    public void confirm(Map<String, Map<String, String>> fullDataMap, String syncDate) {
         int operatorId = currentOperatorId();
         LocalDate date = LocalDate.parse(syncDate);
 
-        for (Map.Entry<String, Integer> entry : drugStockMap.entrySet()) {
+        for (Map.Entry<String, Map<String, String>> entry : fullDataMap.entrySet()) {
             String drugCode = entry.getKey();
-            int    newQty   = entry.getValue();
+            Map<String, String> rowData = entry.getValue();
+            int newQty = parseInt(rowData.getOrDefault("药品库存", "0"));
 
             StockSyncDetail d = analyze(drugCode, newQty);
 
             switch (d.getChangeType()) {
-                case "NEW"  -> handleNew(d, date, operatorId);
+                case "NEW"  -> handleNew(d, rowData, date, operatorId);
                 case "IN"   -> handleIn(d, date, operatorId);
                 case "OUT"  -> handleOut(d, date, operatorId);
                 // UNCHANGED: 跳过
             }
         }
-        log.info("stock sync confirmed, syncDate={}, entries={}", syncDate, drugStockMap.size());
+        log.info("stock sync confirmed, syncDate={}, entries={}", syncDate, fullDataMap.size());
     }
 
     // -------------------------------------------------------------------------
@@ -141,12 +142,27 @@ public class StockSyncServiceImpl implements StockSyncService {
     // confirm 子处理
     // -------------------------------------------------------------------------
 
-    /** NEW：新建药品 + 初始批次；不产生入/出库流水（初始建档，非业务流转） */
-    private void handleNew(StockSyncDetail d, LocalDate date, int operatorId) {
+    /**
+     * NEW：从完整行数据构建药品档案，再创建初始批次。
+     * 字段缺失时降级处理（drugName 用 drugCode 占位，数字字段默认 0）。
+     */
+    private void handleNew(StockSyncDetail d, Map<String, String> rowData,
+                           LocalDate date, int operatorId) {
         Drug drug = new Drug();
         drug.setDrugCode(d.getDrugCode());
-        drug.setDrugName(d.getDrugCode());   // 占位，后续可通过药品管理补全
-        drug.setStockMin(0);
+
+        String drugName = nullIfBlank(rowData.getOrDefault("药品名称", ""));
+        drug.setDrugName(drugName != null ? drugName : d.getDrugCode());
+        drug.setCommonName(nullIfBlank(rowData.getOrDefault("通用名称", "")));
+        drug.setCategory(nullIfBlank(rowData.getOrDefault("类别", "")));
+        drug.setUnit(nullIfBlank(rowData.getOrDefault("单位", "")));
+        drug.setSpec(nullIfBlank(rowData.getOrDefault("规格", "")));
+        drug.setManufacturer(nullIfBlank(rowData.getOrDefault("生产厂家", "")));
+        drug.setApprovalNo(nullIfBlank(rowData.getOrDefault("批准文号", "")));
+        drug.setBarcode(nullIfBlank(rowData.getOrDefault("条码", "")));
+        drug.setCostPrice(parseBigDecimal(rowData.getOrDefault("成本价", "")));
+        drug.setRetailPrice(parseBigDecimal(rowData.getOrDefault("零售价", "")));
+        drug.setStockMin(5);
         drug.setStatus(1);
         drugMapper.insert(drug);
 
@@ -154,12 +170,14 @@ public class StockSyncServiceImpl implements StockSyncService {
         batch.setDrugId(drug.getId());
         batch.setBatchNo(BATCH_INIT);
         batch.setQuantity(d.getNewQuantity());
+        batch.setCostPrice(drug.getCostPrice());
         batch.setExpireDate(LocalDate.of(2099, 12, 31));
         batch.setStockInDate(date);
         batch.setStatus(1);
         stockBatchMapper.insert(batch);
 
-        log.debug("sync NEW: drugCode={}, qty={}", d.getDrugCode(), d.getNewQuantity());
+        log.debug("sync NEW: drugCode={}, drugName={}, qty={}",
+                d.getDrugCode(), drug.getDrugName(), d.getNewQuantity());
     }
 
     /** IN：找初始批次累加库存，写入入库流水 */
@@ -236,7 +254,7 @@ public class StockSyncServiceImpl implements StockSyncService {
     }
 
     // -------------------------------------------------------------------------
-    // 工具
+    // 工具方法
     // -------------------------------------------------------------------------
 
     private static int currentOperatorId() {
@@ -247,5 +265,24 @@ public class StockSyncServiceImpl implements StockSyncService {
     private static BigDecimal calcAmount(BigDecimal unitPrice, int qty) {
         if (unitPrice == null) return null;
         return unitPrice.multiply(BigDecimal.valueOf(qty));
+    }
+
+    /** 解析整数，失败默认返回 0 */
+    private static int parseInt(String val) {
+        if (val == null || val.isBlank()) return 0;
+        try { return (int) Double.parseDouble(val.trim()); }
+        catch (NumberFormatException e) { return 0; }
+    }
+
+    /** 解析 BigDecimal，失败返回 null */
+    private static BigDecimal parseBigDecimal(String val) {
+        if (val == null || val.isBlank()) return null;
+        try { return new BigDecimal(val.trim()); }
+        catch (NumberFormatException e) { return null; }
+    }
+
+    /** 空白字符串转 null，非空字符串 trim 后返回 */
+    private static String nullIfBlank(String s) {
+        return (s == null || s.isBlank()) ? null : s.trim();
     }
 }
