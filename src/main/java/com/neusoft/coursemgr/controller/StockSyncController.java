@@ -30,7 +30,8 @@ public class StockSyncController {
 
     /**
      * 预览库存同步结果，不写入数据库。
-     * 只需"药品编码"和"药品库存"两列做对比，其余列忽略。
+     * 从 Excel 提取"药品编码"、"药品库存"做库存对比，
+     * 同时提取"药品名称"用于 NEW 类型的展示。
      */
     @PostMapping(value = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "预览库存同步（不写库）")
@@ -38,8 +39,28 @@ public class StockSyncController {
             @RequestPart("file") MultipartFile file,
             @RequestParam("syncDate") String syncDate) throws IOException {
 
-        Map<String, Integer> drugStockMap = parseExcelSimple(file);
-        return ApiResponse.ok(stockSyncService.preview(drugStockMap, syncDate));
+        Map<String, Map<String, String>> full = parseExcelFull(file);
+
+        // 校验"药品库存"列存在
+        if (full.values().stream().noneMatch(row -> row.containsKey("药品库存"))) {
+            throw new BizException(400, "Excel 缺少\"药品库存\"列");
+        }
+
+        Map<String, Integer> drugStockMap = new LinkedHashMap<>();
+        Map<String, String>  drugNameMap  = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, String>> e : full.entrySet()) {
+            String qtyStr = e.getValue().getOrDefault("药品库存", "");
+            if (!qtyStr.isBlank()) {
+                try {
+                    drugStockMap.put(e.getKey(), (int) Double.parseDouble(qtyStr.trim()));
+                } catch (NumberFormatException ignored) { }
+            }
+            String name = e.getValue().getOrDefault("药品名称", "").trim();
+            if (!name.isEmpty()) {
+                drugNameMap.put(e.getKey(), name);
+            }
+        }
+        return ApiResponse.ok(stockSyncService.preview(drugStockMap, drugNameMap, syncDate));
     }
 
     /**
@@ -62,34 +83,7 @@ public class StockSyncController {
     // -------------------------------------------------------------------------
 
     /**
-     * preview 专用：只提取"药品编码"→"药品库存"两列，构建 Map&lt;String, Integer&gt;。
-     * 要求 Excel 必须同时包含这两列。
-     */
-    private static Map<String, Integer> parseExcelSimple(MultipartFile file) throws IOException {
-        Map<String, Map<String, String>> full = parseExcelFull(file);
-
-        // 校验"药品库存"列存在（至少有一行包含该 key）
-        boolean hasQtyCol = full.values().stream()
-                .anyMatch(row -> row.containsKey("药品库存"));
-        if (!hasQtyCol) {
-            throw new BizException(400, "Excel 缺少\"药品库存\"列");
-        }
-
-        Map<String, Integer> result = new LinkedHashMap<>();
-        for (Map.Entry<String, Map<String, String>> e : full.entrySet()) {
-            String qtyStr = e.getValue().getOrDefault("药品库存", "");
-            if (qtyStr.isBlank()) continue;
-            try {
-                result.put(e.getKey(), (int) Double.parseDouble(qtyStr.trim()));
-            } catch (NumberFormatException ignored) {
-                // 无法解析的数量行跳过
-            }
-        }
-        return result;
-    }
-
-    /**
-     * confirm 专用：读取 Excel 所有列，构建 Map&lt;药品编码, Map&lt;列名, 值&gt;&gt;。
+     * 读取 Excel 所有列，构建 Map&lt;药品编码, Map&lt;列名, 值&gt;&gt;。
      * <ul>
      *   <li>.xls → HSSFWorkbook（POI 从 Codepage 记录自动识别 GBK 编码）</li>
      *   <li>.xlsx → XSSFWorkbook</li>

@@ -46,12 +46,19 @@ public class StockSyncServiceImpl implements StockSyncService {
     // -------------------------------------------------------------------------
 
     @Override
-    public StockSyncPreview preview(Map<String, Integer> drugStockMap, String syncDate) {
+    public StockSyncPreview preview(Map<String, Integer> drugStockMap,
+                                    Map<String, String> drugNameMap,
+                                    String syncDate) {
         List<StockSyncDetail> details = new ArrayList<>();
         int newCount = 0, inCount = 0, outCount = 0, unchangedCount = 0;
 
         for (Map.Entry<String, Integer> entry : drugStockMap.entrySet()) {
             StockSyncDetail d = analyze(entry.getKey(), entry.getValue());
+            // NEW 类型：优先用 Excel 提供的药品名称，找不到再用编码占位
+            if ("NEW".equals(d.getChangeType())) {
+                String name = drugNameMap.getOrDefault(entry.getKey(), "").trim();
+                if (!name.isEmpty()) d.setDrugName(name);
+            }
             details.add(d);
             switch (d.getChangeType()) {
                 case "NEW"       -> newCount++;
@@ -143,41 +150,72 @@ public class StockSyncServiceImpl implements StockSyncService {
     // -------------------------------------------------------------------------
 
     /**
-     * NEW：从完整行数据构建药品档案，再创建初始批次。
-     * 字段缺失时降级处理（drugName 用 drugCode 占位，数字字段默认 0）。
+     * NEW 分支：三路判断。
+     * <ol>
+     *   <li>药品不存在 → 新建完整档案 + 初始批次</li>
+     *   <li>药品存在且 drugName == drugCode（上次同步留下的占位记录）
+     *       → 用本次 Excel 完整信息执行 updateById 补全档案</li>
+     *   <li>药品存在且 drugName != drugCode（真实档案）→ 跳过</li>
+     * </ol>
      */
     private void handleNew(StockSyncDetail d, Map<String, String> rowData,
                            LocalDate date, int operatorId) {
-        Drug drug = new Drug();
-        drug.setDrugCode(d.getDrugCode());
+        Drug existing = drugMapper.selectByDrugCode(d.getDrugCode());
 
-        String drugName = nullIfBlank(rowData.getOrDefault("药品名称", ""));
-        drug.setDrugName(drugName != null ? drugName : d.getDrugCode());
-        drug.setCommonName(nullIfBlank(rowData.getOrDefault("通用名称", "")));
-        drug.setCategory(nullIfBlank(rowData.getOrDefault("类别", "")));
-        drug.setUnit(nullIfBlank(rowData.getOrDefault("单位", "")));
-        drug.setSpec(nullIfBlank(rowData.getOrDefault("规格", "")));
-        drug.setManufacturer(nullIfBlank(rowData.getOrDefault("生产厂家", "")));
-        drug.setApprovalNo(nullIfBlank(rowData.getOrDefault("批准文号", "")));
-        drug.setBarcode(nullIfBlank(rowData.getOrDefault("条码", "")));
-        drug.setCostPrice(parseBigDecimal(rowData.getOrDefault("成本价", "")));
-        drug.setRetailPrice(parseBigDecimal(rowData.getOrDefault("零售价", "")));
-        drug.setStockMin(5);
-        drug.setStatus(1);
-        drugMapper.insert(drug);
+        if (existing == null) {
+            // ① 新建完整档案 + 初始批次
+            Drug drug = new Drug();
+            drug.setDrugCode(d.getDrugCode());
+            String drugName = nullIfBlank(rowData.getOrDefault("药品名称", ""));
+            drug.setDrugName(drugName != null ? drugName : d.getDrugCode());
+            drug.setCommonName(nullIfBlank(rowData.getOrDefault("通用名称", "")));
+            drug.setCategory(nullIfBlank(rowData.getOrDefault("类别", "")));
+            drug.setUnit(nullIfBlank(rowData.getOrDefault("单位", "")));
+            drug.setSpec(nullIfBlank(rowData.getOrDefault("规格", "")));
+            drug.setManufacturer(nullIfBlank(rowData.getOrDefault("生产厂家", "")));
+            drug.setApprovalNo(nullIfBlank(rowData.getOrDefault("批准文号", "")));
+            drug.setBarcode(nullIfBlank(rowData.getOrDefault("条码", "")));
+            drug.setCostPrice(parseBigDecimal(rowData.getOrDefault("成本价", "")));
+            drug.setRetailPrice(parseBigDecimal(rowData.getOrDefault("零售价", "")));
+            drug.setStockMin(5);
+            drug.setStatus(1);
+            drugMapper.insert(drug);
 
-        StockBatch batch = new StockBatch();
-        batch.setDrugId(drug.getId());
-        batch.setBatchNo(BATCH_INIT);
-        batch.setQuantity(d.getNewQuantity());
-        batch.setCostPrice(drug.getCostPrice());
-        batch.setExpireDate(LocalDate.of(2099, 12, 31));
-        batch.setStockInDate(date);
-        batch.setStatus(1);
-        stockBatchMapper.insert(batch);
+            StockBatch batch = new StockBatch();
+            batch.setDrugId(drug.getId());
+            batch.setBatchNo(BATCH_INIT);
+            batch.setQuantity(d.getNewQuantity());
+            batch.setCostPrice(drug.getCostPrice());
+            batch.setExpireDate(LocalDate.of(2099, 12, 31));
+            batch.setStockInDate(date);
+            batch.setStatus(1);
+            stockBatchMapper.insert(batch);
 
-        log.debug("sync NEW: drugCode={}, drugName={}, qty={}",
-                d.getDrugCode(), drug.getDrugName(), d.getNewQuantity());
+            log.debug("sync NEW (created): drugCode={}, drugName={}, qty={}",
+                    d.getDrugCode(), drug.getDrugName(), d.getNewQuantity());
+
+        } else if (existing.getDrugName().equals(existing.getDrugCode())) {
+            // ② 占位记录 → 补全药品档案（不动批次和库存）
+            Drug update = new Drug();
+            update.setId(existing.getId());
+            update.setDrugName(nullIfBlank(rowData.getOrDefault("药品名称", "")));
+            update.setCommonName(nullIfBlank(rowData.getOrDefault("通用名称", "")));
+            update.setCategory(nullIfBlank(rowData.getOrDefault("类别", "")));
+            update.setUnit(nullIfBlank(rowData.getOrDefault("单位", "")));
+            update.setSpec(nullIfBlank(rowData.getOrDefault("规格", "")));
+            update.setManufacturer(nullIfBlank(rowData.getOrDefault("生产厂家", "")));
+            update.setApprovalNo(nullIfBlank(rowData.getOrDefault("批准文号", "")));
+            update.setBarcode(nullIfBlank(rowData.getOrDefault("条码", "")));
+            update.setCostPrice(parseBigDecimal(rowData.getOrDefault("成本价", "")));
+            update.setRetailPrice(parseBigDecimal(rowData.getOrDefault("零售价", "")));
+            drugMapper.updateById(update);
+
+            log.debug("sync NEW (placeholder updated): drugCode={}", d.getDrugCode());
+
+        } else {
+            // ③ 真实档案已存在 → 跳过
+            log.debug("sync NEW skipped (real drug exists): drugCode={}", d.getDrugCode());
+        }
     }
 
     /** IN：找初始批次累加库存，写入入库流水 */
