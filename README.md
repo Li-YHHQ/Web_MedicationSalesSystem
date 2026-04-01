@@ -6,15 +6,16 @@
 
 | 模块 | 接口前缀 | 说明 |
 |------|----------|------|
-| 用户认证 | `/api/users` | 注册、登录、JWT 鉴权 |
+| 用户认证 | `/api/users` | 登录、获取/更新当前用户信息、JWT 鉴权 |
 | 药品管理 | `/api/drugs` | CRUD、Excel 导入/导出 |
-| 供应商管理 | `/api/suppliers` | CRUD、关键词搜索 |
-| 入库管理 | `/api/stock/in` | 入库单记录与查询 |
+| 供应商管理 | `/api/suppliers` | CRUD、关键词搜索、下拉列表 |
+| 入库管理 | `/api/stock/in` | 入库单记录与查询、批次查询、预警查询 |
 | 出库管理 | `/api/stock/out` | 出库单记录与查询 |
 | 库存同步 | `/api/stock/sync` | Excel 批量同步（预览 + 确认） |
 | 数据看板 | `/api/dashboard` | 库存/销售汇总指标 |
-| 财务统计 | `/api/finance` | 每日财务明细与汇总 |
-| 文件管理 | `/api/files` | 文件上传与访问 |
+| 财务统计 | `/api/finance` | 每日财务明细与汇总、手动触发同步 |
+| 文件管理 | `/api/files` | 文件访问（公开） |
+| 管理员文件管理 | `/api/admin/files` | 图片上传、文件删除（需管理员权限） |
 
 ## 技术栈
 
@@ -22,6 +23,7 @@
 - **持久层**：MyBatis 3、MySQL 8.0+
 - **认证**：JWT（JJWT 0.12）
 - **Excel 处理**：EasyExcel（导出）+ Apache POI（导入，原生处理 GBK 编码的 .xls 文件）
+- **文件存储**：数据库 BLOB（`file_record_table`）
 - **API 文档**：SpringDoc OpenAPI（Swagger UI）
 - **监控**：Sentry
 - **构建**：Maven、Java 17
@@ -56,7 +58,7 @@ src/main/resources/
 | `stock_out_table` | 出库流水 |
 | `supplier_table` | 供应商 |
 | `finance_daily_table` | 每日财务汇总 |
-| `file_record_table` | 上传文件记录 |
+| `file_record_table` | 上传文件记录（含 BLOB 数据） |
 
 ## 快速开始
 
@@ -104,6 +106,7 @@ mvn spring-boot:run
 ```
 
 分页响应的 `data` 结构：
+
 ```json
 { "total": 100, "list": [ ... ] }
 ```
@@ -125,6 +128,14 @@ POST /api/users/login
 
 ### 核心接口
 
+#### 用户
+
+```
+POST /api/users/login       登录，返回 JWT token
+GET  /api/users/me          获取当前登录用户信息
+PUT  /api/users/me          更新当前用户信息（昵称、密码等）
+```
+
 #### 药品管理
 
 ```
@@ -133,7 +144,7 @@ GET    /api/drugs/{id}         查询单个
 POST   /api/drugs              新增
 PUT    /api/drugs/{id}         更新
 DELETE /api/drugs/{id}         软删除（status → 0）
-GET    /api/drugs/export       导出 Excel
+GET    /api/drugs/export       导出 Excel（支持 keyword / category / status 过滤）
 POST   /api/drugs/import       导入 Excel（.xls/.xlsx，按列名匹配，自动识别格式）
 ```
 
@@ -141,8 +152,36 @@ Excel 导入支持两种格式（按表头自动判断）：
 
 | 格式 | 识别条件 | 处理逻辑 |
 |------|----------|----------|
-| 药品档案表 | 含"药品编码"列，不含"有效期"列 | 按编码新增/更新药品，可同时创建初始批次 |
-| 效期批次表 | 同时含"药品编码"和"有效期"列 | 回填已有"初始批次"的效期信息，或新建批次 |
+| 药品档案表 | 不含"有效期"列 | 按编码新增/更新药品，可同时创建初始批次 |
+| 效期批次表 | 含"有效期"列 | 回填已有"初始批次"的效期信息，或新建批次 |
+
+#### 供应商管理
+
+```
+GET    /api/suppliers           分页查询（keyword / status / page / size）
+GET    /api/suppliers/all       查询全部正常状态的供应商（用于下拉选择）
+GET    /api/suppliers/{id}      查询单个
+POST   /api/suppliers           新增
+PUT    /api/suppliers/{id}      更新
+DELETE /api/suppliers/{id}      软删除
+```
+
+#### 入库管理
+
+```
+POST /api/stock/in                    手动入库
+GET  /api/stock/in                    分页查询入库记录（drugId / supplierId / startDate / endDate）
+GET  /api/stock/batches/{drugId}      查询某药品的所有批次
+GET  /api/stock/expire?days=90        查询即将过期批次（默认 90 天内）
+GET  /api/stock/low                   查询库存不足批次（库存 < 药品设定的 stockMin）
+```
+
+#### 出库管理
+
+```
+POST /api/stock/out     手动出库
+GET  /api/stock/out     分页查询出库记录（drugId / outType / startDate / endDate）
+```
 
 #### 库存同步
 
@@ -169,6 +208,24 @@ GET /api/dashboard
 ```
 
 返回：药品总数、总库存、90天内到期批次数、库存不足批次数、今日/本月销售额与利润、最近7天财务数据。
+
+#### 财务统计
+
+```
+GET  /api/finance/summary      财务汇总（startDate / endDate，默认本月）
+GET  /api/finance/daily        每日财务明细列表（startDate / endDate，默认本月）
+POST /api/finance/sync         手动触发同步今日财务数据
+```
+
+财务数据由定时任务每日自动汇总，也可通过 `/sync` 手动触发。
+
+#### 文件管理
+
+```
+GET    /api/files/{id}          获取文件内容（图片直接展示，带长期缓存头）
+POST   /api/admin/files/images  管理员上传图片（multipart/form-data，需管理员权限）
+DELETE /api/admin/files         管理员删除文件（传 {"url": "/api/files/{id}"}）
+```
 
 ## Excel 导入说明
 
