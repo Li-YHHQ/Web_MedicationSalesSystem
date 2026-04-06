@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -31,10 +32,11 @@ public class FinanceServiceImpl implements FinanceService {
     @Override
     @Transactional
     public void syncDaily(LocalDate date) {
-        String dateStr = date.toString(); // "yyyy-MM-dd"
+        LocalDateTime startTime = date.atStartOfDay();
+        LocalDateTime endTime   = date.plusDays(1).atStartOfDay();
 
         // 从 stock_out_table 汇总当天数据
-        StockOutSummaryVO stats = stockOutMapper.sumByDateRange(dateStr, dateStr);
+        StockOutSummaryVO stats = stockOutMapper.sumByDateRange(startTime, endTime);
 
         BigDecimal salesAmount  = stats.getTotalSalesAmount()  != null ? stats.getTotalSalesAmount()  : BigDecimal.ZERO;
         BigDecimal costAmount   = stats.getTotalCostAmount()   != null ? stats.getTotalCostAmount()   : BigDecimal.ZERO;

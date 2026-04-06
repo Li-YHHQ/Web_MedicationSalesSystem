@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -107,8 +109,12 @@ public class StockOutServiceImpl implements StockOutService {
                                                String startDate, String endDate,
                                                int page, int size) {
         int offset = (page - 1) * size;
-        List<StockOutVO> list = stockOutMapper.selectList(drugId, outType, startDate, endDate, offset, size);
-        long total = stockOutMapper.countList(drugId, outType, startDate, endDate);
+        LocalDateTime startTime = (startDate != null && !startDate.isEmpty())
+                ? LocalDate.parse(startDate).atStartOfDay() : null;
+        LocalDateTime endTime = (endDate != null && !endDate.isEmpty())
+                ? LocalDate.parse(endDate).plusDays(1).atStartOfDay() : null;
+        List<StockOutVO> list = stockOutMapper.selectList(drugId, outType, startTime, endTime, offset, size);
+        long total = stockOutMapper.countList(drugId, outType, startTime, endTime);
         return new PageResult<>(total, list);
     }
 }

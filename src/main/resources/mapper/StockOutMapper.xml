@@ -74,11 +74,11 @@
             <if test="outType != null">
                 AND so.out_type = #{outType}
             </if>
-            <if test="startDate != null and startDate != ''">
-                AND DATE(so.create_time) &gt;= #{startDate}
+            <if test="startTime != null">
+                AND so.create_time &gt;= #{startTime}
             </if>
-            <if test="endDate != null and endDate != ''">
-                AND DATE(so.create_time) &lt;= #{endDate}
+            <if test="endTime != null">
+                AND so.create_time &lt; #{endTime}
             </if>
         </where>
         ORDER BY so.id DESC
@@ -97,11 +97,11 @@
             <if test="outType != null">
                 AND so.out_type = #{outType}
             </if>
-            <if test="startDate != null and startDate != ''">
-                AND DATE(so.create_time) &gt;= #{startDate}
+            <if test="startTime != null">
+                AND so.create_time &gt;= #{startTime}
             </if>
-            <if test="endDate != null and endDate != ''">
-                AND DATE(so.create_time) &lt;= #{endDate}
+            <if test="endTime != null">
+                AND so.create_time &lt; #{endTime}
             </if>
         </where>
     </select>
@@ -116,11 +116,11 @@
             COALESCE(COUNT(CASE WHEN out_type = 1 THEN 1 END), 0)                  AS sales_count
         FROM stock_out_table
         <where>
-            <if test="startDate != null and startDate != ''">
-                AND DATE(create_time) &gt;= #{startDate}
+            <if test="startTime != null">
+                AND create_time &gt;= #{startTime}
             </if>
-            <if test="endDate != null and endDate != ''">
-                AND DATE(create_time) &lt;= #{endDate}
+            <if test="endTime != null">
+                AND create_time &lt; #{endTime}
             </if>
         </where>
     </select>

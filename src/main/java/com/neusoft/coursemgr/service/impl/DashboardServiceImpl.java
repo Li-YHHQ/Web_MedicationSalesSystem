@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -34,10 +35,10 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public DashboardVO getDashboard() {
-        LocalDate today = LocalDate.now();
-        String todayStr      = today.toString();
-        String monthStartStr = today.withDayOfMonth(1).toString();
+        LocalDate today      = LocalDate.now();
+        LocalDate monthStart = today.withDayOfMonth(1);
         String sevenDaysAgo  = today.minusDays(6).toString();
+        String todayStr      = today.toString();
 
         // 药品总数
         int totalDrugCount = dashboardMapper.countTotalDrugs();
@@ -52,12 +53,15 @@ public class DashboardServiceImpl implements DashboardService {
         int lowStockCount = stockBatchMapper.selectLowStock().size();
 
         // 今日销售额 / 利润
-        StockOutSummaryVO todayStats = stockOutMapper.sumByDateRange(todayStr, todayStr);
+        LocalDateTime todayStart    = today.atStartOfDay();
+        LocalDateTime tomorrowStart = today.plusDays(1).atStartOfDay();
+        StockOutSummaryVO todayStats = stockOutMapper.sumByDateRange(todayStart, tomorrowStart);
         BigDecimal todaySalesAmount  = valueOf(todayStats.getTotalSalesAmount());
         BigDecimal todayProfitAmount = valueOf(todayStats.getTotalProfit());
 
         // 本月销售额 / 利润
-        StockOutSummaryVO monthStats = stockOutMapper.sumByDateRange(monthStartStr, todayStr);
+        LocalDateTime monthStartTime = monthStart.atStartOfDay();
+        StockOutSummaryVO monthStats = stockOutMapper.sumByDateRange(monthStartTime, tomorrowStart);
         BigDecimal monthSalesAmount  = valueOf(monthStats.getTotalSalesAmount());
         BigDecimal monthProfitAmount = valueOf(monthStats.getTotalProfit());
 
