@@ -42,6 +42,10 @@
         WHERE id = #{id}
     </update>
 
+    <update id="updatePasswordHash">
+        UPDATE user_table SET password_hash = #{passwordHash} WHERE id = #{id}
+    </update>
+
     <select id="selectUsers" parameterType="string" resultMap="UserResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM user_table

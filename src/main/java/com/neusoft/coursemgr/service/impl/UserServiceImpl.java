@@ -84,6 +84,19 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public void changePassword(Long userId, String oldPassword, String newPassword) {
+        User u = userMapper.selectById(userId);
+        if (u == null) {
+            throw new BizException(404, "用户不存在");
+        }
+        if (!encoder.matches(oldPassword, u.getPasswordHash())) {
+            throw new BizException(400, "原密码错误");
+        }
+        userMapper.updatePasswordHash(userId, encoder.encode(newPassword));
+        log.info("user change password, userId={}", userId);
+    }
+
+    @Override
     public List<User> adminListUsers(Long adminUserId, String keyword) {
         User admin = userMapper.selectById(adminUserId);
         if (admin == null) {
