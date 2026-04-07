@@ -16,5 +16,7 @@ public interface UserService {
 
     void updateMe(Long userId, UpdateProfileRequest req);
 
+    void changePassword(Long userId, String oldPassword, String newPassword);
+
     List<User> adminListUsers(Long adminUserId, String keyword);
 }
